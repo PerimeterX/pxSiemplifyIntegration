@@ -11,11 +11,18 @@ class PerimeterXManager(object):
     def __init__(self, slack_channel=None, slack_api_key=None, connector_type=None, offset_in_seconds=0):
         self.slack_channel = slack_channel
         self.slack_api_key = slack_api_key
-        self.slack_offset = offset_in_seconds
+        self.slack_offset = self.convert_offset(offset_in_seconds)
         self.connector_type = connector_type
         self.slack_cursor = ''
         self.paginated = False
         self.messages = []
+
+
+    """ This is a bit of a hack but it works for now """
+    def convert_offset(self, seconds):
+        if(seconds == 0):
+            return seconds
+        return float(((seconds*1000)+1)/1000000)
 
 
     def get_slack_channel_id(self):

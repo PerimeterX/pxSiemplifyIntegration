@@ -141,7 +141,6 @@ class BasePXCodeDefenderConnector(object):
         """
         Allows to fetch last run time for connector.
         It's important to work from last successful timestamp to effectively process events.
-        :return: {arrow.datetime}
         """
         last_run_time = self.connector_scope.fetch_timestamp(datetime_format=False)
 
@@ -164,7 +163,7 @@ class BasePXCodeDefenderConnector(object):
         # Get last successful execution time.
         if all_alerts and len(all_alerts) > 0:
             # Sort the cases by the end time of each case.
-            all_alerts = sorted(all_alerts, key=lambda case: case.end_time)
+            all_alerts = sorted(all_alerts, key=lambda event: event.end_time)
             # Last execution time is set to the newest message time
             new_last_run_time = all_alerts[-1].end_time
             self.logger.info(u"New Run Time From alerts: {}".format(new_last_run_time))
