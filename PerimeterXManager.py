@@ -100,7 +100,7 @@ class PerimeterXManager(object):
 
         response = requests.get(
             'https://slack.com/api/conversations.history',
-            params={'channel': channelId, 'limit': 1, 'cursor': self.slack_cursor, 'oldest': self.slack_offset},
+            params={'channel': channelId, 'limit': 100, 'cursor': self.slack_cursor, 'oldest': self.slack_offset},
             headers={'Authorization': 'Bearer ' + self.slack_api_key}
         )
 
