@@ -8,21 +8,25 @@ class PerimeterXManagerException(Exception):
 
 class PerimeterXManager(object):
 
-    def __init__(self, slack_channel=None, slack_api_key=None, connector_type=None, offset_in_seconds=0):
+    def __init__(self, slack_channel=None, slack_api_key=None, connector_type=None, offset_in_ms=0):
         self.slack_channel = slack_channel
         self.slack_api_key = slack_api_key
-        self.slack_offset = self.convert_offset(offset_in_seconds)
+        self.slack_offset = self.convert_offset(offset_in_ms)
         self.connector_type = connector_type
         self.slack_cursor = ''
         self.paginated = False
         self.messages = []
 
 
-    """ This is a bit of a hack but it works for now """
-    def convert_offset(self, seconds):
-        if(seconds == 0):
-            return seconds
-        return float(((seconds*1000)+1)/1000000)
+    """ Siemplify cannot store microseconds like Slack requires
+        so we take the offset_in_ms turn it into microseconds with *10000
+        Next, we need to add a single microsecond to avoid a loop with the +1
+        Finally, we /1000000 to generate the time format required for the slack API 
+        If the offset is 0, then we just use 0"""
+    def convert_offset(self, ms):
+        if(ms == 0):
+            return ms
+        return float(((ms*10000)+1)/1000000)
 
 
     def get_slack_channel_id(self):
@@ -33,19 +37,16 @@ class PerimeterXManager(object):
         # curl -H 'Authorization: Bearer slack_api_key' https://slack.com/api/conversations.list
         # foreach channels if name == slack_channel, then return id
         if response.status_code != 200:
-            print('Failure')
             return False
 
         json_response = response.json()
 
         # check to make sure we've got a channels array
         if 'channels' not in json_response:
-            print('No Channels Identified')
             return False
 
         # check to make sure the channels is a list
         if type(json_response['channels']) != list:
-            print('Not a valid list of channels')
             return False
 
         # step through the channels looking for the one we want
@@ -95,17 +96,16 @@ class PerimeterXManager(object):
         channelId = self.get_slack_channel_id()
 
         if channelId == False:
-            print('No Channel ID Given for get_slack_messages')
             return False
 
         response = requests.get(
-            'https://slack.com/api/conversations.history',
+            'https://api.slack.com/api/conversations.history',
+            verify=False,
             params={'channel': channelId, 'limit': 100, 'cursor': self.slack_cursor, 'oldest': self.slack_offset},
             headers={'Authorization': 'Bearer ' + self.slack_api_key}
         )
 
         if response.status_code != 200:
-            print('Failure')
             return False
 
         json_response = response.json()
@@ -126,7 +126,6 @@ class PerimeterXManager(object):
 
         # Check to make sure there's messages in the list
         if len(json_response['messages']) < 1:
-            print('Empty messages')
             return False
 
         # walk through our retrieved messages to find CD related entries
@@ -156,16 +155,13 @@ class PerimeterXManager(object):
             headers={'Authorization': 'Bearer ' + self.slack_api_key}
         )
         if response.status_code != 200:
-            print('Failure Code getting slack channel ID')
             return False
 
         json_response = response.json()
         if 'ok' in json_response and json_response['ok'] == True:
-            print('Valid Authentication')
             return True
 
         if 'ok' in json_response and json_response['ok'] == False:
-            print('Authentication Failed')
             return False
 
         return False

@@ -57,20 +57,6 @@ class BasePXCodeDefenderConnector(object):
         self.last_run_time = self._get_last_calculated_run_time()
 
 
-    #def _load_connector_whitelist_rules(self):
-    #    """
-    #    Loads regex map from whitelist rules in order to extract information from emails and include it to event.
-    #    """
-    #    whitelist_rules = self.connector_scope.whitelist if self.connector_scope.whitelist else []
-    #    self.logger.info(u"Current whitelist rules are: {}".format(whitelist_rules))
-
-    #    self.regex_map = DEFAULT_REGEX_MAP
-    #    if whitelist_rules:
-    #        self.regex_map = build_regex_map(whitelist_rules)
-
-    #    self.logger.info(u"The current regex map is: {}".format(self.regex_map))
-
-
     def _initialize_managers(self):
         """
         Abstract method to initialize all required managers
@@ -84,7 +70,7 @@ class BasePXCodeDefenderConnector(object):
         """
         self.logger.info(u"------------------- Main - Started -------------------")
 
-        self.logger.info(u"Last execution time: {}".format(self.last_run_time))
+        self.logger.info(u"Last execution time: {:.6f}".format(self.last_run_time))
 
         alerts = [] # The main output of each connector run
 
@@ -115,8 +101,6 @@ class BasePXCodeDefenderConnector(object):
         for my_alert in my_alerts:
             try:
             
-                self.logger.info("TEST ALERT")
-                print(my_alert)
                 alert_details = self._fetch_alert(my_alert)
 
                 if alert_details:
@@ -145,7 +129,16 @@ class BasePXCodeDefenderConnector(object):
         last_run_time = self.connector_scope.fetch_timestamp(datetime_format=False)
 
         self.logger.info(
-            u"Calculated last run time. Last run time is: {0}".format(
+            u"Received last run time. Last run time is: {}".format(
+                last_run_time))
+
+        if last_run_time > 0:
+            last_run_time = round(float(last_run_time / 10000), 6)
+        else:
+            last_run_time = 0
+
+        self.logger.info(
+            u"Calculated last run time. Last run time is: {:.6f}".format(
                 last_run_time))
 
         return last_run_time
@@ -163,13 +156,13 @@ class BasePXCodeDefenderConnector(object):
         # Get last successful execution time.
         if all_alerts and len(all_alerts) > 0:
             # Sort the cases by the end time of each case.
-            all_alerts = sorted(all_alerts, key=lambda event: event.end_time)
+            all_alerts = sorted(all_alerts, key=lambda event: event.slack_time)
             # Last execution time is set to the newest message time
-            new_last_run_time = all_alerts[-1].end_time
-            self.logger.info(u"New Run Time From alerts: {}".format(new_last_run_time))
+            new_last_run_time = all_alerts[-1].slack_time
+            self.logger.info(u"New Run Time From alerts: {:.6f}".format(new_last_run_time))
         else:
             # previous_timestamp is datetime object. Convert it to milliseconds timestamp.
-            self.logger.info(u"New Run Time From previous_timestamp: {}".format(new_last_run_time))
+            self.logger.info(u"New Run Time From previous_timestamp: {:.6f}".format(new_last_run_time))
             new_last_run_time = previous_timestamp
 
         if not self.is_test:
@@ -214,7 +207,7 @@ class PXCodeDefenderConnector(BasePXCodeDefenderConnector):
             slack_channel=self.param_slack_channel,
             slack_api_key=self.param_slack_api_key,
             connector_type='slack',
-            offset_in_seconds=self.last_run_time
+            offset_in_ms=self.last_run_time
         )
 
 
@@ -230,12 +223,13 @@ class PXCodeDefenderConnector(BasePXCodeDefenderConnector):
         # Each alert_info has a unique key composed of alert_info.name+alert_info.display_id. This key is used to validate data is digested only once by the Siemplify System - to avoid duplicates.
         # If an alert_info has a uniqe_key that has already been digested, it will be ignored.
         # The uniqueness must be persistent, even after server restart\ refetching of the same alert, multiple runs of the same API queries, etc.
-        alert_info.display_id = round(float(alert['ts'])*100000)
-        alert_info.ticket_id = round(float(alert['ts'])*100000)  # In default, ticket_id = display_id. But, if for some reason the external alert id, is different then the composite's key display_id, you can save the original external alert id in this "ticket_id" field.
+        alert_info.display_id = round(float(alert['ts'])*1000000)
+        alert_info.ticket_id = round(float(alert['ts'])*1000000)  # In default, ticket_id = display_id. But, if for some reason the external alert id, is different then the composite's key display_id, you can save the original external alert id in this "ticket_id" field.
         alert_info.name = 'Code Defender ' + alert['severity'] + ' Alert'
         alert_info.rule_generator = alert['title']  # Describes the name of the siem's rule, that caused the aggregation of the alert.
         alert_info.start_time = round(float(alert['ts'])*1000) # Times should be saved in UnixTime. You may use SiemplifyUtils.convert_datetime_to_unix_time, or SiemplifyUtils.convert_string_to_datetime
-        alert_info.end_time = round(float(alert['ts'])*1000)+1 # Take the current time from Slack but we need to +1 ms since slack timestamps are finer and we could end up in a loop
+        alert_info.end_time = round(float(alert['ts'])*1000) # Take the current time from Slack but we need to +1 ms since slack timestamps are finer and we could end up in a loop
+        alert_info.slack_time = round(float(alert['ts'])*1000000)
         alert_info.priority = self.VENDOR_RISK_MAP[alert['severity']]  # Informative = -1,Low = 40,Medium = 60,High = 80,Critical = 100.
         alert_info.device_vendor = VENDOR  # This field, may be fetched from the Original Alert. If you build this alert manualy, Describe the source vendor of the data. (ie: Microsoft, Mcafee)
         alert_info.device_product = PRODUCT  # This field, may be fetched from the Original Alert. If you build this alert manualy, Describe the source product of the data. (ie: ActiveDirectory, AntiVirus)
